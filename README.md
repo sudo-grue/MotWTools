@@ -15,17 +15,17 @@ This can disable previews and trigger security warnings when opening the file.
 
 ### Pre-built Binaries
 
-Two build variants are available:
+After building or publishing the project, you’ll find the compiled executables in your local build output directories:
 
-| Build Type              | File                    | Description                                                                               |
-| ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------- |
-| **Self-Contained**      | `MotWUnblocker-sc.exe`  | Includes the .NET runtime. Runs on any Windows 10/11 x64 system with no dependencies.     |
-| **Framework-Dependent** | `MotWUnblocker-fdd.exe` | Smaller binary that relies on the machine’s installed **.NET 9 Windows Desktop Runtime**. |
+- **[bin\Release\SelfContained\](bin/Release/SelfContained/)** — contains `MotWUnblocker-sc.exe`
+- **[bin\Release\FddSingle\](bin/Release/FddSingle/)** — contains `MotWUnblocker-fdd.exe`
 
-**To use:**
-1. Download the desired `.exe` from the [Releases](../../releases) page.
-2. Copy it anywhere (e.g., Desktop or Tools folder).
-3. Double-click to run — no installation or admin rights required.
+Download the desired `.exe` from either directory, depending on your preferred build flavor.
+
+| Build Type              | Output Directory             | Description                                                            |
+| ----------------------- | ---------------------------- | ---------------------------------------------------------------------- |
+| **Self-Contained**      | `bin\Release\SelfContained\` | Includes the .NET runtime — runs on any Windows 10/11 x64 system.      |
+| **Framework-Dependent** | `bin\Release\FddSingle\`     | Smaller binary that uses the installed .NET 9 Windows Desktop Runtime. |
 
 ### System Requirements
 
