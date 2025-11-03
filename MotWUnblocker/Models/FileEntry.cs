@@ -62,7 +62,6 @@ namespace MotWUnblocker.Models
                 len /= 1024;
             }
 
-            // Use appropriate precision based on size
             string format = order == 0 ? "0" : "0.##";
             return $"{len.ToString(format, CultureInfo.InvariantCulture)} {sizes[order]}";
         }

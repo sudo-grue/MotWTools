@@ -27,7 +27,6 @@ namespace MotWUnblocker.Utils
             {
                 try
                 {
-                    // Rotate log if it's too large
                     if (File.Exists(LogPath) && new FileInfo(LogPath).Length > MaxLogSizeBytes)
                     {
                         RotateLog();
@@ -39,7 +38,6 @@ namespace MotWUnblocker.Utils
                 }
                 catch (Exception ex)
                 {
-                    // Fallback to debug output if file logging fails
                     Debug.WriteLine($"Logger failed: {ex.Message} | Original: [{level}] {message}");
                 }
             }
@@ -52,7 +50,6 @@ namespace MotWUnblocker.Utils
                 var archivePath = Path.Combine(BaseDir, $"unblocker.{DateTime.Now:yyyyMMdd-HHmmss}.log");
                 File.Move(LogPath, archivePath);
 
-                // Clean up old archives (keep only last 5)
                 var archives = Directory.GetFiles(BaseDir, "unblocker.*.log")
                     .OrderByDescending(f => f)
                     .Skip(5)
@@ -65,7 +62,6 @@ namespace MotWUnblocker.Utils
             }
             catch
             {
-                // If rotation fails, just truncate the current log
                 try { File.WriteAllText(LogPath, string.Empty); } catch { /* best effort */ }
             }
         }
@@ -75,7 +71,6 @@ namespace MotWUnblocker.Utils
             if (string.IsNullOrEmpty(message))
                 return string.Empty;
 
-            // Escape newlines and carriage returns to prevent log injection
             return message
                 .Replace("\r", "\\r")
                 .Replace("\n", "\\n")

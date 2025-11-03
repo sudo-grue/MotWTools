@@ -5,7 +5,6 @@ namespace MotWUnblocker.Services
 {
     public static class MotWService
     {
-        // Mark-of-the-Web lives in the NTFS Alternate Data Stream "Zone.Identifier"
         private const string ZoneIdentifierStream = ":Zone.Identifier";
         private static string ZoneStream(string path) => path + ZoneIdentifierStream;
 
@@ -16,7 +15,6 @@ namespace MotWUnblocker.Services
 
             try
             {
-                // Check if the file itself exists first
                 if (!File.Exists(path))
                     return false;
 
@@ -93,8 +91,6 @@ namespace MotWUnblocker.Services
 
         public static bool Block(string path, out string? error, int zoneId = 3)
         {
-            // ZoneId: 3 = Internet zone (classic MotW)
-            // ZoneId values: 0=Local, 1=Intranet, 2=Trusted, 3=Internet, 4=Restricted
             error = null;
 
             if (string.IsNullOrWhiteSpace(path))
@@ -124,7 +120,6 @@ namespace MotWUnblocker.Services
                 {
                     sw.WriteLine("[ZoneTransfer]");
                     sw.WriteLine($"ZoneId={zoneId}");
-                    // Include additional metadata for better Windows compatibility
                     sw.WriteLine($"HostUrl=about:internet");
                 }
 
