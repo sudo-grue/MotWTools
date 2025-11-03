@@ -6,6 +6,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 
@@ -14,12 +15,59 @@ namespace MotWUnblocker
     public partial class MainWindow : Window
     {
         private readonly ObservableCollection<FileEntry> _files = new();
+        private const string NoFilesSelectedMessage = "No files selected.";
+        private bool _isProcessing;
 
         public MainWindow()
         {
             InitializeComponent();
             DataContext = _files;
             Logger.Info("Application started.");
+
+            // Add keyboard shortcuts
+            KeyDown += MainWindow_KeyDown;
+        }
+
+        private void MainWindow_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (_isProcessing) return;
+
+            // Ctrl+O - Add Files
+            if (e.Key == Key.O && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                AddFiles_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            // Delete - Remove Selected
+            else if (e.Key == Key.Delete)
+            {
+                RemoveSelected_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            // Ctrl+L - Clear All
+            else if (e.Key == Key.L && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                ClearAll_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            // F5 - Refresh
+            else if (e.Key == Key.F5)
+            {
+                Refresh_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            // Ctrl+U - Unblock
+            else if (e.Key == Key.U && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                UnblockSelected_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            // Ctrl+B - Block
+            else if (e.Key == Key.B && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                BlockSelected_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
         }
 
         private void AddFiles_Click(object sender, RoutedEventArgs e)
@@ -45,73 +93,141 @@ namespace MotWUnblocker
             SetStatus($"Removed {toRemove.Count} file(s).");
         }
 
-        private void Refresh_Click(object sender, RoutedEventArgs e)
+        private void ClearAll_Click(object sender, RoutedEventArgs e)
         {
-            foreach (var f in _files)
+            if (_files.Count == 0)
             {
-                f.HasMotW = MotWService.HasMotW(f.FullPath);
+                SetStatus("No files to clear.");
+                return;
             }
-            SetStatus("Status refreshed.");
+
+            var count = _files.Count;
+            _files.Clear();
+            SetStatus($"Cleared {count} file(s).");
+            Logger.Info($"Cleared all files from list ({count} files)");
         }
 
-        private void UnblockSelected_Click(object sender, RoutedEventArgs e)
+        private async void Refresh_Click(object sender, RoutedEventArgs e)
         {
-            var targets = _files.Where(f => f.Selected).ToList();
-            if (targets.Count == 0) { SetStatus("No files selected."); return; }
+            if (_isProcessing) return;
 
-            int ok = 0, fail = 0;
-            foreach (var f in targets)
+            SetProcessingState(true);
+            SetStatus("Refreshing status...");
+
+            var filesToRefresh = _files.ToList();
+
+            await Task.Run(() =>
             {
-                if (!File.Exists(f.FullPath))
+                foreach (var f in filesToRefresh)
                 {
-                    fail++;
-                    Logger.Warn($"Missing file: {f.FullPath}");
-                    continue;
+                    f.HasMotW = MotWService.HasMotW(f.FullPath);
                 }
-                var result = MotWService.Unblock(f.FullPath, out var err);
-                if (result)
-                {
-                    ok++;
-                    f.HasMotW = false;
-                    Logger.Info($"Unblocked: {f.FullPath}");
-                }
-                else
-                {
-                    fail++;
-                    Logger.Error($"Unblock failed: {f.FullPath} :: {err}");
-                }
+            });
+
+            SetStatus($"Status refreshed for {filesToRefresh.Count} file(s).");
+            SetProcessingState(false);
+        }
+
+        private async void UnblockSelected_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isProcessing) return;
+
+            var targets = _files.Where(f => f.Selected && File.Exists(f.FullPath)).ToList();
+            if (targets.Count == 0)
+            {
+                SetStatus(NoFilesSelectedMessage);
+                return;
             }
+
+            SetProcessingState(true);
+
+            var (ok, fail) = await ProcessFilesAsync(targets, async (file) =>
+            {
+                return await Task.Run(() =>
+                {
+                    var result = MotWService.Unblock(file.FullPath, out var error);
+                    if (result)
+                    {
+                        Dispatcher.Invoke(() => file.HasMotW = false);
+                    }
+                    return result;
+                });
+            });
+
             SetStatus($"Unblock complete. Success: {ok}, Failed: {fail}");
+            SetProcessingState(false);
         }
 
-        private void BlockSelected_Click(object sender, RoutedEventArgs e)
+        private async void BlockSelected_Click(object sender, RoutedEventArgs e)
         {
-            var targets = _files.Where(f => f.Selected).ToList();
-            if (targets.Count == 0) { SetStatus("No files selected."); return; }
+            if (_isProcessing) return;
 
-            int ok = 0, fail = 0;
-            foreach (var f in targets)
+            var targets = _files.Where(f => f.Selected && File.Exists(f.FullPath)).ToList();
+            if (targets.Count == 0)
             {
-                if (!File.Exists(f.FullPath))
+                SetStatus(NoFilesSelectedMessage);
+                return;
+            }
+
+            SetProcessingState(true);
+
+            var (ok, fail) = await ProcessFilesAsync(targets, async (file) =>
+            {
+                return await Task.Run(() =>
                 {
-                    fail++;
-                    Logger.Warn($"Missing file: {f.FullPath}");
-                    continue;
+                    var result = MotWService.Block(file.FullPath, out var error);
+                    if (result)
+                    {
+                        Dispatcher.Invoke(() => file.HasMotW = true);
+                    }
+                    return result;
+                });
+            });
+
+            SetStatus($"Block (add MotW) complete. Success: {ok}, Failed: {fail}");
+            SetProcessingState(false);
+        }
+
+        private async Task<(int success, int failed)> ProcessFilesAsync(
+            List<FileEntry> files,
+            Func<FileEntry, Task<bool>> operation)
+        {
+            int ok = 0, fail = 0;
+            int total = files.Count;
+
+            for (int i = 0; i < files.Count; i++)
+            {
+                var file = files[i];
+                SetStatus($"Processing {i + 1}/{total}: {file.Name}");
+
+                try
+                {
+                    var result = await operation(file);
+                    if (result)
+                        ok++;
+                    else
+                        fail++;
                 }
-                var result = MotWService.Block(f.FullPath, out var err);
-                if (result)
+                catch (Exception ex)
                 {
-                    ok++;
-                    f.HasMotW = true;
-                    Logger.Info($"Blocked (MotW added): {f.FullPath}");
-                }
-                else
-                {
+                    Logger.Error($"Error processing {file.FullPath}: {ex.Message}");
                     fail++;
-                    Logger.Error($"Block failed: {f.FullPath} :: {err}");
                 }
             }
-            SetStatus($"Block (add MotW) complete. Success: {ok}, Failed: {fail}");
+
+            return (ok, fail);
+        }
+
+        private void SetProcessingState(bool isProcessing)
+        {
+            _isProcessing = isProcessing;
+            Mouse.OverrideCursor = isProcessing ? Cursors.Wait : null;
+
+            // Disable all buttons during processing
+            foreach (var button in Toolbar.Items.OfType<System.Windows.Controls.Button>())
+            {
+                button.IsEnabled = !isProcessing;
+            }
         }
 
         private void OpenLogFolder_Click(object sender, RoutedEventArgs e)
