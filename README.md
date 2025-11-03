@@ -85,10 +85,22 @@ After building or publishing the project, you’ll find the compiled executables
   - **Block (Add MotW)** → add MotW metadata
   - **Refresh Status** → update displayed state
 
+**Keyboard Shortcuts**
+| Shortcut | Action |
+| -------- | ------ |
+| `Ctrl+O` | Add files to the list |
+| `Ctrl+A` | Select/deselect all files (toggle) |
+| `Delete` | Remove selected files from the list |
+| `Ctrl+L` | Clear all files from the list |
+| `F5` | Refresh MotW status for all files |
+| `Ctrl+U` | Unblock selected files |
+| `Ctrl+B` | Block (add MotW to) selected files |
+
 **Features**
 - Batch processing
 - Real-time status indicators
 - Drag-and-drop support
+- Keyboard shortcuts for efficient workflow
 - Detailed local logging
 - No elevated permissions required
 
