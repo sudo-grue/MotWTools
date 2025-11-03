@@ -2,88 +2,133 @@
 .SYNOPSIS
   View/Add/Remove Mark-of-the-Web (Zone.Identifier) on files.
 
+.DESCRIPTION
+  Manages the NTFS Zone.Identifier alternate data stream that marks files
+  as downloaded from the Internet. Version 1.0.0
+
 .USAGE
   MotW.ps1 *.pdf                 # Unblock (default)
   MotW.ps1 unblock *.pdf
   MotW.ps1 add *.pdf
   MotW.ps1 status .
   MotW.ps1 unblock . -Recurse
+  MotW.ps1 add *.exe -WhatIf     # Preview changes
 #>
 
-[CmdletBinding(PositionalBinding = $false)]
+[CmdletBinding(PositionalBinding = $false, SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
 param(
-    # Optional action; default is 'unblock'. Leave unnamed to keep paths positional.
     [ValidateSet('unblock', 'add', 'status')]
     [string]$Action = 'unblock',
 
-    # Gather all remaining positional args (paths, maybe an action token)
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$ArgsRest,
 
-    # Recurse through folders
     [switch]$Recurse
 )
 
-# ---- Flexible args shim: support both "MotW.ps1 *.pdf" and "MotW.ps1 unblock *.pdf" ----
+$Script:Version = "1.0.0"
+$Script:LogPath = Join-Path $env:LOCALAPPDATA "MotW\motw.log"
+$Script:LogDir = Split-Path $Script:LogPath -Parent
+
+function Write-Log {
+    param(
+        [Parameter(Mandatory)][string]$Level,
+        [Parameter(Mandatory)][string]$Message
+    )
+
+    try {
+        if (-not (Test-Path $Script:LogDir)) {
+            New-Item -Path $Script:LogDir -ItemType Directory -Force | Out-Null
+        }
+
+        $timestamp = Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz"
+        $sanitizedMessage = $Message -replace "`r", '\r' -replace "`n", '\n' -replace "`t", '\t'
+        $logLine = "$timestamp [$Level] $sanitizedMessage"
+
+        Add-Content -Path $Script:LogPath -Value $logLine -ErrorAction SilentlyContinue
+    }
+    catch {
+        Write-Debug "Logging failed: $_"
+    }
+}
+
+function Write-LogInfo { param([string]$Message) Write-Log -Level "INFO" -Message $Message }
+function Write-LogWarn { param([string]$Message) Write-Log -Level "WARN" -Message $Message }
+function Write-LogError { param([string]$Message) Write-Log -Level "ERROR" -Message $Message }
+
 $validActions = @('unblock', 'add', 'status')
 [string[]]$Paths = @()
 
 if ($ArgsRest -and $ArgsRest.Count -gt 0) {
     if ($ArgsRest[0] -in $validActions) {
-        # Form: action first, then paths
         $Action = $ArgsRest[0]
         if ($ArgsRest.Count -gt 1) { $Paths = $ArgsRest[1..($ArgsRest.Count - 1)] }
     }
     else {
-        # Form: no action token; treat all as paths and use default 'unblock'
         $Paths = $ArgsRest
     }
 }
 else {
-    # No args supplied at all -> prompt user
     Write-Error "No paths provided. Example: MotW.ps1 *.pdf  or  MotW.ps1 unblock . -Recurse"
+    Write-LogError "No paths provided by user"
     return
 }
+
+Write-LogInfo "MotW.ps1 v$Script:Version started - Action: $Action, Paths: $($Paths -join ', '), Recurse: $Recurse"
 
 function Resolve-Targets {
     param(
         [string[]]$InputPaths,
         [switch]$Recurse
     )
-    $targets = @()
+
+    $targetSet = @{}
 
     if (-not $InputPaths -or $InputPaths.Count -eq 0) {
-        Write-Error "No paths provided. Example: MotW.ps1 *.pdf  or  MotW.ps1 unblock . -Recurse"
+        Write-Error "No paths provided"
+        Write-LogError "Resolve-Targets called with no paths"
         return @()
     }
 
     foreach ($p in $InputPaths) {
-        # Resolve to files
         $resolved = @()
-        try {
-            $resolved = Resolve-Path -LiteralPath $p -ErrorAction Stop | ForEach-Object { $_.Path }
+
+        if (Test-Path -LiteralPath $p -ErrorAction SilentlyContinue) {
+            $resolved = @((Resolve-Path -LiteralPath $p).Path)
         }
-        catch {
-            # If literal resolution fails (e.g., wildcard from some callers), try wildcard enumeration
-            $resolved = Get-ChildItem -Path $p -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+        else {
+            try {
+                $resolved = @(Get-ChildItem -Path $p -File -ErrorAction Stop | ForEach-Object { $_.FullName })
+            }
+            catch {
+                Write-Warning "Could not resolve path: $p"
+                Write-LogWarn "Path resolution failed: $p - $_"
+                continue
+            }
         }
 
         foreach ($r in $resolved) {
             if (Test-Path $r -PathType Container) {
                 if ($Recurse) {
-                    $targets += Get-ChildItem -LiteralPath $r -Recurse -File -Force | ForEach-Object { $_.FullName }
+                    $childItems = Get-ChildItem -LiteralPath $r -Recurse -File -Force -ErrorAction SilentlyContinue
                 }
                 else {
-                    $targets += Get-ChildItem -LiteralPath $r -File -Force | ForEach-Object { $_.FullName }
+                    $childItems = Get-ChildItem -LiteralPath $r -File -Force -ErrorAction SilentlyContinue
+                }
+
+                foreach ($item in $childItems) {
+                    $targetSet[$item.FullName] = $true
                 }
             }
             else {
-                $targets += $r
+                $targetSet[$r] = $true
             }
         }
     }
 
-    $targets | Sort-Object -Unique
+    $targets = @($targetSet.Keys | Sort-Object)
+    Write-LogInfo "Resolved $($targets.Count) file(s)"
+    return $targets
 }
 
 function Test-HasMotW {
@@ -98,32 +143,61 @@ function Test-HasMotW {
 }
 
 $files = Resolve-Targets -InputPaths $Paths -Recurse:$Recurse
-if (-not $files -or $files.Count -eq 0) { return }
+if (-not $files -or $files.Count -eq 0) {
+    Write-LogWarn "No files found to process"
+    return
+}
+
+$successCount = 0
+$failCount = 0
 
 switch ($Action) {
     'unblock' {
         foreach ($f in $files) {
-            try {
-                # Remove ADS directly, ignore if missing
-                Remove-Item -LiteralPath $f -Stream Zone.Identifier -ErrorAction SilentlyContinue
-
-                Unblock-File -LiteralPath $f -ErrorAction SilentlyContinue
-                Write-Host "Unblocked: $f"
-            }
-            catch {
-                Write-Warning ("Failed to unblock: {0}  -> {1}" -f $f, $_.Exception.Message)
+            if ($PSCmdlet.ShouldProcess($f, "Remove Mark-of-the-Web")) {
+                try {
+                    if (Test-Path -LiteralPath $f) {
+                        Remove-Item -LiteralPath $f -Stream Zone.Identifier -ErrorAction SilentlyContinue
+                        Write-Host "Unblocked: $f" -ForegroundColor Green
+                        Write-LogInfo "Unblocked: $f"
+                        $successCount++
+                    }
+                    else {
+                        Write-Warning "File not found: $f"
+                        Write-LogWarn "File not found: $f"
+                        $failCount++
+                    }
+                }
+                catch {
+                    Write-Warning "Failed to unblock: $f - $($_.Exception.Message)"
+                    Write-LogError "Unblock failed: $f - $($_.Exception.Message)"
+                    $failCount++
+                }
             }
         }
     }
 
     'add' {
         foreach ($f in $files) {
-            try {
-                Set-Content -LiteralPath $f -Stream Zone.Identifier -Value "[ZoneTransfer]`nZoneId=3" -Force
-                Write-Host "Marked (MotW added): $f"
-            }
-            catch {
-                Write-Warning ("Failed to add MotW: {0}  -> {1}" -f $f, $_.Exception.Message)
+            if ($PSCmdlet.ShouldProcess($f, "Add Mark-of-the-Web")) {
+                try {
+                    if (Test-Path -LiteralPath $f) {
+                        Set-Content -LiteralPath $f -Stream Zone.Identifier -Value "[ZoneTransfer]`nZoneId=3`nHostUrl=about:internet" -Force
+                        Write-Host "Marked (MotW added): $f" -ForegroundColor Yellow
+                        Write-LogInfo "Added MotW: $f"
+                        $successCount++
+                    }
+                    else {
+                        Write-Warning "File not found: $f"
+                        Write-LogWarn "File not found: $f"
+                        $failCount++
+                    }
+                }
+                catch {
+                    Write-Warning "Failed to add MotW: $f - $($_.Exception.Message)"
+                    Write-LogError "Add MotW failed: $f - $($_.Exception.Message)"
+                    $failCount++
+                }
             }
         }
     }
@@ -131,17 +205,31 @@ switch ($Action) {
     'status' {
         foreach ($f in $files) {
             try {
-                $has = Test-HasMotW -Path $f
-                if ($has) {
-                    Write-Host ("[MotW]  {0}" -f $f)
+                if (Test-Path -LiteralPath $f) {
+                    $has = Test-HasMotW -Path $f
+                    if ($has) {
+                        Write-Host "[MotW]  $f" -ForegroundColor Red
+                    }
+                    else {
+                        Write-Host "[clean] $f" -ForegroundColor Gray
+                    }
+                    $successCount++
                 }
                 else {
-                    Write-Host ("[clean] {0}" -f $f)
+                    Write-Warning "File not found: $f"
+                    Write-LogWarn "File not found: $f"
+                    $failCount++
                 }
             }
             catch {
-                Write-Warning ("Failed to read status: {0}  -> {1}" -f $f, $_.Exception.Message)
+                Write-Warning "Failed to read status: $f - $($_.Exception.Message)"
+                Write-LogError "Status check failed: $f - $($_.Exception.Message)"
+                $failCount++
             }
         }
     }
 }
+
+$summary = "Complete - Success: $successCount, Failed: $failCount"
+Write-Verbose $summary
+Write-LogInfo $summary

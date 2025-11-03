@@ -118,8 +118,16 @@ The `scripts/` directory contains automation-friendly tools that can be installe
 | Script                        | Purpose                                                          |
 | ----------------------------- | ---------------------------------------------------------------- |
 | **MotW.ps1**                  | Core logic for adding/removing/status checking of MotW metadata. |
-| **Install-MotWContext.ps1**   | Installs the CLI tool and “Send To → MotW – Unblock” shortcut.   |
+| **Install-MotWContext.ps1**   | Installs the CLI tool and "Send To → MotW – Unblock" shortcut.   |
 | **Uninstall-MotWContext.ps1** | Cleanly removes all installed components.                        |
+
+**Features (v1.0.0)**
+- Comprehensive logging to `%LOCALAPPDATA%\MotW\motw.log`
+- `-WhatIf` and `-Confirm` support for safe testing
+- Colored console output for status visibility
+- Optimized performance with hashtable-based deduplication
+- Detailed error handling and reporting
+- Success/failure counters
 
 ---
 
@@ -135,6 +143,7 @@ MotW.ps1 unblock *.docx
 MotW.ps1 add *.exe
 MotW.ps1 status .
 MotW.ps1 unblock . -Recurse
+MotW.ps1 add *.exe -WhatIf      # Preview changes without making them
 ```
 
 **Actions**
@@ -143,6 +152,14 @@ MotW.ps1 unblock . -Recurse
 | `unblock` | Removes MotW metadata (default).              |
 | `add`     | Adds MotW metadata (`ZoneId=3`).              |
 | `status`  | Displays `[MotW]` or `[clean]` for each file. |
+
+**Common Parameters**
+| Parameter  | Description                                           |
+| ---------- | ----------------------------------------------------- |
+| `-Recurse` | Process directories recursively.                      |
+| `-WhatIf`  | Show what would happen without making changes.        |
+| `-Confirm` | Prompt for confirmation before each file operation.   |
+| `-Verbose` | Display detailed operation information.               |
 
 **Examples**
 ```powershell
@@ -154,7 +171,19 @@ MotW.ps1 status . -Recurse
 
 # Add MotW metadata back to executables
 MotW.ps1 add *.exe
+
+# Preview unblock operation without making changes
+MotW.ps1 unblock *.docx -WhatIf
+
+# Unblock with confirmation prompts
+MotW.ps1 unblock *.pdf -Confirm
 ```
+
+**Logs:**
+All PowerShell operations are logged to:
+- `%LOCALAPPDATA%\MotW\motw.log` (MotW.ps1 operations)
+- `%LOCALAPPDATA%\MotW\install.log` (Installation)
+- `%LOCALAPPDATA%\MotW\uninstall.log` (Uninstallation)
 
 ---
 
