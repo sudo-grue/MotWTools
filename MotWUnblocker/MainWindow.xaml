@@ -12,28 +12,43 @@
 
         <DockPanel>
 
-                <ToolBar DockPanel.Dock="Top">
+                <ToolBar x:Name="Toolbar" DockPanel.Dock="Top">
                         <Button Click="AddFiles_Click"
                                 Padding="12,4"
-                                Margin="0,0,6,0">Add Files…</Button>
+                                Margin="0,0,6,0"
+                                ToolTip="Add files to the list (Ctrl+O)">
+                                <TextBlock>
+                                        <Run Text="_Add Files…"/>
+                                        <Run Text=" " FontSize="10"/>
+                                </TextBlock>
+                        </Button>
                         <Button Click="RemoveSelected_Click"
                                 Padding="12,4"
-                                Margin="0,0,6,0">Remove Selected</Button>
+                                Margin="0,0,6,0"
+                                ToolTip="Remove selected files from the list (Delete)">_Remove Selected</Button>
+                        <Button Click="ClearAll_Click"
+                                Padding="12,4"
+                                Margin="0,0,6,0"
+                                ToolTip="Clear all files from the list (Ctrl+L)">C_lear All</Button>
                         <Separator/>
                         <Button Click="Refresh_Click"
                                 Padding="12,4"
-                                Margin="0,0,6,0">Refresh Status</Button>
+                                Margin="0,0,6,0"
+                                ToolTip="Refresh MotW status for all files (F5)">_Refresh Status</Button>
                         <Separator/>
                         <Button Click="UnblockSelected_Click"
                                 Padding="12,4"
-                                Margin="0,0,6,0">Unblock Selected</Button>
+                                Margin="0,0,6,0"
+                                ToolTip="Remove MotW from selected files (Ctrl+U)">_Unblock Selected</Button>
                         <Button Click="BlockSelected_Click"
                                 Padding="12,4"
-                                Margin="0,0,6,0">Block (Add MotW)</Button>
+                                Margin="0,0,6,0"
+                                ToolTip="Add MotW to selected files (Ctrl+B)">_Block (Add MotW)</Button>
                         <Separator/>
                         <Button Click="OpenLogFolder_Click"
                                 Padding="12,4"
-                                Margin="0,0,6,0">Open Log Folder</Button>
+                                Margin="0,0,6,0"
+                                ToolTip="Open the log file folder">Open _Log Folder</Button>
                         <TextBlock Text="Drag &amp; drop files here, or click Add Files…"
                                    Margin="12,0,0,0"
                                    VerticalAlignment="Center"/>
@@ -42,6 +57,9 @@
                 <DataGrid x:Name="Grid"
                           AutoGenerateColumns="False"
                           CanUserAddRows="False"
+                          CanUserSortColumns="True"
+                          CanUserReorderColumns="True"
+                          CanUserResizeColumns="True"
                           IsReadOnly="True"
                           SelectionMode="Extended"
                           Margin="8"
