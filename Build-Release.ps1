@@ -12,7 +12,7 @@
 [CmdletBinding()]
 param(
     [string]$Configuration = "Release",
-    [string]$Version = "1.0.0"
+    [string]$Version = "1.0.1"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,7 +56,28 @@ Write-Host "`nGenerating release notes..." -ForegroundColor Cyan
 $releaseNotes = @"
 # MotW Tools v$Version
 
-Initial release of MotW Tools - a suite for managing Mark-of-the-Web metadata on Windows files.
+Improved release of MotW Tools with enhanced PowerShell logging and error handling.
+
+## What's New in v1.0.1
+
+**PowerShell Scripts**
+- Added comprehensive logging to all PowerShell scripts
+- Added ``-WhatIf`` and ``-Confirm`` support for safe testing
+- Optimized path resolution with hashtable-based deduplication
+- Enhanced error handling with specific error messages
+- Added colored console output for better visibility
+- Added success/failure counters for batch operations
+- Hybrid installer approach (tries local MotW.ps1, falls back to embedded)
+- Proper COM object disposal in installer
+
+**GUI Application**
+- Added keyboard shortcuts (Ctrl+A, Ctrl+U, Ctrl+L, Delete, F5, Ctrl+B)
+- Added Select All toggle functionality
+- Added Clear All functionality
+- Converted to async/await for responsive UI during file operations
+- Added thread-safe logging with automatic rotation
+- Improved file size display (KB/MB/GB formatting)
+- Enhanced error handling with specific exception messages
 
 ## Downloads
 
