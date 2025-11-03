@@ -16,8 +16,8 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
-# Exception: Allow publishing release binaries for distribution
-!bin/Release/net9.0-windows/win-x64/publish/MotWUnblocker.exe
+# Release directory for GitHub releases
+release/
 
 # Visual Studio cache/options
 .vs/
