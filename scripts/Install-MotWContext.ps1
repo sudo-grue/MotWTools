@@ -47,7 +47,6 @@ $LogPath = Join-Path $env:LOCALAPPDATA "MotW\install.log"
 $LogDir = Split-Path $LogPath -Parent
 $SendToDir = Join-Path $env:APPDATA 'Microsoft\Windows\SendTo'
 $SendToLnk = Join-Path $SendToDir 'MotW - Reassign.lnk'
-$ContextMenuRegPath = "HKCU:\Software\Classes\*\shell\MotW"
 
 function Write-InstallLog {
     param(
