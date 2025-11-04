@@ -681,7 +681,6 @@ if (-not $NoSendTo) {
             New-Item -ItemType Directory -Force -Path $SendToDir -ErrorAction Stop | Out-Null
 
             # Use MotW-SendTo.ps1 if available, otherwise fall back to direct MotW.ps1 call
-            $sendToTarget = if (Test-Path $SendToScriptPath) { $SendToScriptPath } else { $ScriptPath }
             $sendToArgs = if (Test-Path $SendToScriptPath) {
                 # Interactive wrapper - keep window visible
                 "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$SendToScriptPath`" `"%1`""
