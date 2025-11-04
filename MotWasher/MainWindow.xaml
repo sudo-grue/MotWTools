@@ -1,7 +1,7 @@
 <Window x:Class="MotWasher.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MotWasher"
+        Title="MotWasher - Zone Reassignment Helper"
         Height="560"
         Width="920"
         MinHeight="420"
@@ -12,6 +12,25 @@
 
         <DockPanel>
 
+                <!-- Educational Banner -->
+                <Border DockPanel.Dock="Top"
+                        Background="#FFF4E5"
+                        BorderBrush="#FFB84D"
+                        BorderThickness="0,0,0,1"
+                        Padding="12,8">
+                        <StackPanel>
+                                <TextBlock FontWeight="Bold" Foreground="#CC6600">
+                                        ⚠️ REMINDER: This tool is a workaround for improperly configured zone policies
+                                </TextBlock>
+                                <TextBlock Margin="0,4,0,0" Foreground="#995500">
+                                        Ask your IT department to properly configure trusted sources via Group Policy.
+                                        Files are "washed" ONE ZONE LEVEL per operation (Zone 3 → Zone 2 → Zone 1 → Zone 0).
+                                </TextBlock>
+                        </StackPanel>
+                </Border>
+
+                <DockPanel>
+
                 <ToolBar x:Name="Toolbar"
                          DockPanel.Dock="Top">
                         <Button Click="AddFiles_Click"
@@ -20,18 +39,8 @@
                                 ToolTip="Add files to the list (Ctrl+O)">
                                 <TextBlock>
                                         <Run Text="_Add Files…"/>
-                                        <Run Text=" "
-                                             FontSize="10"/>
                                 </TextBlock>
                         </Button>
-                        <Button Click="RemoveSelected_Click"
-                                Padding="12,4"
-                                Margin="0,0,6,0"
-                                ToolTip="Remove selected files from the list (Delete)">_Remove Selected</Button>
-                        <Button Click="SelectAll_Click"
-                                Padding="12,4"
-                                Margin="0,0,6,0"
-                                ToolTip="Select/deselect all files (Ctrl+A)">Select _All</Button>
                         <Button Click="ClearAll_Click"
                                 Padding="12,4"
                                 Margin="0,0,6,0"
@@ -42,20 +51,20 @@
                                 Margin="0,0,6,0"
                                 ToolTip="Refresh MotW status for all files (F5)">_Refresh Status</Button>
                         <Separator/>
-                        <Button Click="UnblockSelected_Click"
-                                Padding="12,4"
+                        <Button x:Name="WashFilesButton"
+                                Click="WashFiles_Click"
+                                Padding="16,6"
                                 Margin="0,0,6,0"
-                                ToolTip="Remove MotW from selected files (Ctrl+U)">_Unblock Selected</Button>
-                        <Button Click="BlockSelected_Click"
-                                Padding="12,4"
-                                Margin="0,0,6,0"
-                                ToolTip="Add MotW to selected files (Ctrl+B)">_Block (Add MotW)</Button>
+                                FontWeight="Bold"
+                                Background="#4CAF50"
+                                Foreground="White"
+                                ToolTip="Wash files - move down one zone level (Ctrl+W)">🧼 _Wash Files (Move Down One Zone)</Button>
                         <Separator/>
                         <Button Click="OpenLogFolder_Click"
                                 Padding="12,4"
                                 Margin="0,0,6,0"
                                 ToolTip="Open the log file folder">Open _Log Folder</Button>
-                        <TextBlock Text="Drag &amp; drop files here, or click Add Files…"
+                        <TextBlock Text="Drag &amp; drop files here to wash zones..."
                                    Margin="12,0,0,0"
                                    VerticalAlignment="Center"/>
                 </ToolBar>
@@ -67,24 +76,11 @@
                           CanUserReorderColumns="True"
                           CanUserResizeColumns="True"
                           IsReadOnly="True"
-                          SelectionMode="Extended"
+                          SelectionMode="Single"
                           Margin="8"
                           ItemsSource="{Binding}">
 
                         <DataGrid.Columns>
-
-                                <DataGridTemplateColumn Header="✔"
-                                                        Width="40"
-                                                        IsReadOnly="True">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                                <DataTemplate>
-                                                        <CheckBox
-                                                                HorizontalAlignment="Center"
-                                                                VerticalAlignment="Center"
-                                                                IsChecked="{Binding Selected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                                </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
 
                                 <DataGridTextColumn Binding="{Binding Name}"
                                                     Header="File"
@@ -96,19 +92,78 @@
                                                     IsReadOnly="True"/>
                                 <DataGridTextColumn Binding="{Binding SizeDisplay}"
                                                     Header="Size"
-                                                    Width="100"
+                                                    Width="90"
                                                     IsReadOnly="True"/>
-                                <DataGridTextColumn Binding="{Binding ModifiedLocal}"
-                                                    Header="Modified"
-                                                    Width="160"
-                                                    IsReadOnly="True"/>
+
+                                <!-- Current Zone with color coding -->
+                                <DataGridTemplateColumn Header="Current Zone" Width="130">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                        <Border Padding="4,2" CornerRadius="3">
+                                                                <Border.Style>
+                                                                        <Style TargetType="Border">
+                                                                                <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding CurrentZoneId}" Value="3">
+                                                                                                <Setter Property="Background" Value="#FFE5E5"/>
+                                                                                        </DataTrigger>
+                                                                                        <DataTrigger Binding="{Binding CurrentZoneId}" Value="2">
+                                                                                                <Setter Property="Background" Value="#FFF8E1"/>
+                                                                                        </DataTrigger>
+                                                                                        <DataTrigger Binding="{Binding CurrentZoneId}" Value="1">
+                                                                                                <Setter Property="Background" Value="#E8F5E9"/>
+                                                                                        </DataTrigger>
+                                                                                        <DataTrigger Binding="{Binding CurrentZoneId}" Value="0">
+                                                                                                <Setter Property="Background" Value="#E3F2FD"/>
+                                                                                        </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                        </Style>
+                                                                </Border.Style>
+                                                                <TextBlock Text="{Binding CurrentZoneDisplay}" FontWeight="Medium"/>
+                                                        </Border>
+                                                </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <!-- Arrow -->
+                                <DataGridTextColumn Header="→" Width="30" IsReadOnly="True">
+                                        <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="→"/>
+                                                        <Setter Property="FontSize" Value="16"/>
+                                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+
+                                <!-- Next Zone with color coding -->
+                                <DataGridTemplateColumn Header="After Wash" Width="130">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                        <Border Padding="4,2" CornerRadius="3">
+                                                                <Border.Style>
+                                                                        <Style TargetType="Border">
+                                                                                <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding NextZoneId}" Value="2">
+                                                                                                <Setter Property="Background" Value="#FFF8E1"/>
+                                                                                        </DataTrigger>
+                                                                                        <DataTrigger Binding="{Binding NextZoneId}" Value="1">
+                                                                                                <Setter Property="Background" Value="#E8F5E9"/>
+                                                                                        </DataTrigger>
+                                                                                        <DataTrigger Binding="{Binding NextZoneId}" Value="0">
+                                                                                                <Setter Property="Background" Value="#E3F2FD"/>
+                                                                                        </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                        </Style>
+                                                                </Border.Style>
+                                                                <TextBlock Text="{Binding NextZoneDisplay}" FontWeight="Medium"/>
+                                                        </Border>
+                                                </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
                                 <DataGridTextColumn Binding="{Binding FullPath}"
                                                     Header="Path"
                                                     Width="2*"
-                                                    IsReadOnly="True"/>
-                                <DataGridTextColumn Binding="{Binding HasMotW}"
-                                                    Header="Has MotW"
-                                                    Width="90"
                                                     IsReadOnly="True"/>
 
                         </DataGrid.Columns>
@@ -117,9 +172,10 @@
                 <StatusBar DockPanel.Dock="Bottom">
                         <StatusBarItem>
                                 <TextBlock x:Name="StatusText"
-                                           Text="Ready"/>
+                                           Text="Ready - Drop files to wash zones"/>
                         </StatusBarItem>
                 </StatusBar>
 
+                </DockPanel>
         </DockPanel>
 </Window>

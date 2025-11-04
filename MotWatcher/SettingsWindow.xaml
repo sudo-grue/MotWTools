@@ -107,6 +107,10 @@
                                             Binding="{Binding MinZoneId}"
                                             Width="60"
                                             IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Target →"
+                                            Binding="{Binding TargetZoneId}"
+                                            Width="70"
+                                            IsReadOnly="True"/>
                     </DataGrid.Columns>
                 </DataGrid>
 

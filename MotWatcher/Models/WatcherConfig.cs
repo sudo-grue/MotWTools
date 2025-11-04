@@ -17,6 +17,24 @@ namespace MotWatcher.Models
         public bool Enabled { get; set; } = true;
         public bool IncludeSubdirectories { get; set; } = false;
         public ObservableCollection<string> FileTypeFilters { get; set; } = new() { "*" };
-        public int? MinZoneId { get; set; } = 3; // null = any, 3 = Internet, 2 = Trusted, 1 = Intranet
+
+        /// <summary>
+        /// Minimum Zone ID to process. Files below this threshold will be ignored.
+        /// null = process all zones, 3 = Internet and above, 2 = Trusted and above, etc.
+        /// </summary>
+        public int? MinZoneId { get; set; } = 3;
+
+        /// <summary>
+        /// Target Zone ID to reassign files to.
+        /// 0 = Local Machine, 1 = Local Intranet, 2 = Trusted Sites
+        /// If null, the MotW will be removed entirely (not recommended for security).
+        /// </summary>
+        public int? TargetZoneId { get; set; } = 2; // Default to Trusted Sites
+
+        /// <summary>
+        /// Exclude patterns (glob-style). Files matching these patterns will be skipped.
+        /// Examples: "*.part", "*.tmp", "*.7z.*"
+        /// </summary>
+        public ObservableCollection<string> ExcludePatterns { get; set; } = new();
     }
 }

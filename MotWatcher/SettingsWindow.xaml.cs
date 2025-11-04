@@ -334,52 +334,145 @@ namespace MotWatcher
     public class EditDirectoryDialog : Window
     {
         private readonly WatchedDirectory _directory;
-        private readonly System.Windows.Controls.ComboBox _zoneComboBox;
+        private readonly System.Windows.Controls.ComboBox _minZoneComboBox;
+        private readonly System.Windows.Controls.ComboBox _targetZoneComboBox;
+        private readonly System.Windows.Controls.ListBox _excludePatternsList;
 
         public EditDirectoryDialog(WatchedDirectory directory)
         {
             _directory = directory;
 
             Title = "Edit Directory Settings";
-            Width = 450;
-            Height = 200;
+            Width = 500;
+            Height = 450;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             ShowInTaskbar = false;
 
-            var grid = new Grid { Margin = new Thickness(10) };
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var grid = new Grid { Margin = new Thickness(15) };
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Path
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Min zone
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Target zone
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Exclude patterns
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Buttons
 
             // Path (read-only)
-            var pathLabel = new System.Windows.Controls.Label { Content = $"Path: {directory.Path}", FontWeight = FontWeights.Bold };
+            var pathLabel = new System.Windows.Controls.Label
+            {
+                Content = $"Path: {directory.Path}",
+                FontWeight = FontWeights.Bold,
+                Margin = new Thickness(0, 0, 0, 10)
+            };
             Grid.SetRow(pathLabel, 0);
             grid.Children.Add(pathLabel);
 
-            // Zone ID threshold
-            var zonePanel = new StackPanel { Margin = new Thickness(0, 10, 0, 10) };
-            zonePanel.Children.Add(new System.Windows.Controls.Label { Content = "Minimum Zone ID to process:" });
+            // Minimum Zone ID threshold
+            var minZonePanel = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+            minZonePanel.Children.Add(new System.Windows.Controls.Label { Content = "Minimum Zone ID to process:" });
 
-            _zoneComboBox = new System.Windows.Controls.ComboBox { SelectedIndex = 0 };
-            _zoneComboBox.Items.Add(new ComboBoxItem { Content = "Any Zone", Tag = (int?)null });
-            _zoneComboBox.Items.Add(new ComboBoxItem { Content = "1+ (Intranet or higher)", Tag = 1 });
-            _zoneComboBox.Items.Add(new ComboBoxItem { Content = "2+ (Trusted sites or higher)", Tag = 2 });
-            _zoneComboBox.Items.Add(new ComboBoxItem { Content = "3+ (Internet only)", Tag = 3 });
+            _minZoneComboBox = new System.Windows.Controls.ComboBox { SelectedIndex = 0 };
+            _minZoneComboBox.Items.Add(new ComboBoxItem { Content = "Any Zone", Tag = (int?)null });
+            _minZoneComboBox.Items.Add(new ComboBoxItem { Content = "1+ (Intranet or higher)", Tag = 1 });
+            _minZoneComboBox.Items.Add(new ComboBoxItem { Content = "2+ (Trusted or higher)", Tag = 2 });
+            _minZoneComboBox.Items.Add(new ComboBoxItem { Content = "3+ (Internet only)", Tag = 3 });
 
-            // Select current value
-            foreach (ComboBoxItem item in _zoneComboBox.Items)
+            foreach (ComboBoxItem item in _minZoneComboBox.Items)
             {
                 if (Equals(item.Tag, directory.MinZoneId))
                 {
-                    _zoneComboBox.SelectedItem = item;
+                    _minZoneComboBox.SelectedItem = item;
                     break;
                 }
             }
 
-            zonePanel.Children.Add(_zoneComboBox);
-            Grid.SetRow(zonePanel, 1);
-            grid.Children.Add(zonePanel);
+            minZonePanel.Children.Add(_minZoneComboBox);
+            Grid.SetRow(minZonePanel, 1);
+            grid.Children.Add(minZonePanel);
+
+            // Target Zone ID
+            var targetZonePanel = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+            var targetLabel = new System.Windows.Controls.Label { Content = "Reassign files to this zone:" };
+            targetZonePanel.Children.Add(targetLabel);
+
+            _targetZoneComboBox = new System.Windows.Controls.ComboBox { SelectedIndex = 0 };
+            _targetZoneComboBox.Items.Add(new ComboBoxItem { Content = "Remove entirely (NOT recommended)", Tag = (int?)null, Foreground = System.Windows.Media.Brushes.Red });
+            _targetZoneComboBox.Items.Add(new ComboBoxItem { Content = "0 - Local Machine (high trust)", Tag = 0 });
+            _targetZoneComboBox.Items.Add(new ComboBoxItem { Content = "1 - Local Intranet", Tag = 1 });
+            _targetZoneComboBox.Items.Add(new ComboBoxItem { Content = "2 - Trusted Sites (recommended)", Tag = 2, FontWeight = FontWeights.Bold });
+            _targetZoneComboBox.Items.Add(new ComboBoxItem { Content = "3 - Internet (no change)", Tag = 3 });
+
+            foreach (ComboBoxItem item in _targetZoneComboBox.Items)
+            {
+                if (Equals(item.Tag, directory.TargetZoneId))
+                {
+                    _targetZoneComboBox.SelectedItem = item;
+                    break;
+                }
+            }
+
+            // Auto-adjust target zone when minimum zone changes
+            _minZoneComboBox.SelectionChanged += (s, e) =>
+            {
+                var selectedMin = (_minZoneComboBox.SelectedItem as ComboBoxItem)?.Tag as int?;
+                int? suggestedTarget = null;
+
+                // Logic: MinZone 3+ → Target 2, MinZone 2+ → Target 1, MinZone 1+ → Target 0
+                if (selectedMin.HasValue)
+                {
+                    suggestedTarget = selectedMin.Value - 1;
+                    if (suggestedTarget < 0) suggestedTarget = 0;
+                }
+                else
+                {
+                    suggestedTarget = 2; // Default to Trusted Sites for "Any Zone"
+                }
+
+                // Select the suggested target
+                foreach (ComboBoxItem item in _targetZoneComboBox.Items)
+                {
+                    if (Equals(item.Tag, suggestedTarget))
+                    {
+                        _targetZoneComboBox.SelectedItem = item;
+                        break;
+                    }
+                }
+            };
+
+            targetZonePanel.Children.Add(_targetZoneComboBox);
+            Grid.SetRow(targetZonePanel, 2);
+            grid.Children.Add(targetZonePanel);
+
+            // Exclude Patterns
+            var excludeGroup = new System.Windows.Controls.GroupBox
+            {
+                Header = "Exclude Patterns (e.g., *.part, *.tmp, *.7z.*)",
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+
+            var excludeGrid = new Grid();
+            excludeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            excludeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            _excludePatternsList = new System.Windows.Controls.ListBox { Height = 100, Margin = new Thickness(5) };
+            foreach (var pattern in directory.ExcludePatterns)
+            {
+                _excludePatternsList.Items.Add(pattern);
+            }
+            Grid.SetColumn(_excludePatternsList, 0);
+            excludeGrid.Children.Add(_excludePatternsList);
+
+            var excludeButtons = new StackPanel { Margin = new Thickness(5) };
+            var addExcludeBtn = new System.Windows.Controls.Button { Content = "Add...", Width = 80, Margin = new Thickness(0, 0, 0, 5) };
+            addExcludeBtn.Click += AddExcludePattern_Click;
+            var removeExcludeBtn = new System.Windows.Controls.Button { Content = "Remove", Width = 80 };
+            removeExcludeBtn.Click += RemoveExcludePattern_Click;
+            excludeButtons.Children.Add(addExcludeBtn);
+            excludeButtons.Children.Add(removeExcludeBtn);
+            Grid.SetColumn(excludeButtons, 1);
+            excludeGrid.Children.Add(excludeButtons);
+
+            excludeGroup.Content = excludeGrid;
+            Grid.SetRow(excludeGroup, 3);
+            grid.Children.Add(excludeGroup);
 
             // Buttons
             var buttonPanel = new StackPanel
@@ -407,18 +500,53 @@ namespace MotWatcher
             cancelButton.Click += (s, e) => { DialogResult = false; Close(); };
             buttonPanel.Children.Add(cancelButton);
 
-            Grid.SetRow(buttonPanel, 3);
+            Grid.SetRow(buttonPanel, 4);
             grid.Children.Add(buttonPanel);
 
             Content = grid;
         }
 
+        private void AddExcludePattern_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new InputDialog("Add Exclude Pattern", "Enter pattern (e.g., *.part, *.tmp, *.7z.*):");
+            if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.Result))
+            {
+                _excludePatternsList.Items.Add(dialog.Result.Trim());
+            }
+        }
+
+        private void RemoveExcludePattern_Click(object sender, RoutedEventArgs e)
+        {
+            if (_excludePatternsList.SelectedItem != null)
+            {
+                _excludePatternsList.Items.Remove(_excludePatternsList.SelectedItem);
+            }
+        }
+
         private void OkButton_Click(object sender, RoutedEventArgs e)
         {
-            var selectedItem = _zoneComboBox.SelectedItem as ComboBoxItem;
-            if (selectedItem != null)
+            // Save minimum zone
+            var selectedMinItem = _minZoneComboBox.SelectedItem as ComboBoxItem;
+            if (selectedMinItem != null)
             {
-                _directory.MinZoneId = selectedItem.Tag as int?;
+                _directory.MinZoneId = selectedMinItem.Tag as int?;
+            }
+
+            // Save target zone
+            var selectedTargetItem = _targetZoneComboBox.SelectedItem as ComboBoxItem;
+            if (selectedTargetItem != null)
+            {
+                _directory.TargetZoneId = selectedTargetItem.Tag as int?;
+            }
+
+            // Save exclude patterns
+            _directory.ExcludePatterns.Clear();
+            foreach (var item in _excludePatternsList.Items)
+            {
+                if (item is string pattern && !string.IsNullOrWhiteSpace(pattern))
+                {
+                    _directory.ExcludePatterns.Add(pattern);
+                }
             }
 
             DialogResult = true;

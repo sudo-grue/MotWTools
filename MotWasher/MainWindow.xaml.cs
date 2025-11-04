@@ -35,16 +35,6 @@ namespace MotWasher
                 AddFiles_Click(this, new RoutedEventArgs());
                 e.Handled = true;
             }
-            else if (e.Key == Key.Delete)
-            {
-                RemoveSelected_Click(this, new RoutedEventArgs());
-                e.Handled = true;
-            }
-            else if (e.Key == Key.A && Keyboard.Modifiers == ModifierKeys.Control)
-            {
-                SelectAll_Click(this, new RoutedEventArgs());
-                e.Handled = true;
-            }
             else if (e.Key == Key.L && Keyboard.Modifiers == ModifierKeys.Control)
             {
                 ClearAll_Click(this, new RoutedEventArgs());
@@ -55,14 +45,9 @@ namespace MotWasher
                 Refresh_Click(this, new RoutedEventArgs());
                 e.Handled = true;
             }
-            else if (e.Key == Key.U && Keyboard.Modifiers == ModifierKeys.Control)
+            else if (e.Key == Key.W && Keyboard.Modifiers == ModifierKeys.Control)
             {
-                UnblockSelected_Click(this, new RoutedEventArgs());
-                e.Handled = true;
-            }
-            else if (e.Key == Key.B && Keyboard.Modifiers == ModifierKeys.Control)
-            {
-                BlockSelected_Click(this, new RoutedEventArgs());
+                WashFiles_Click(this, new RoutedEventArgs());
                 e.Handled = true;
             }
         }
@@ -82,34 +67,6 @@ namespace MotWasher
             }
         }
 
-        private void RemoveSelected_Click(object sender, RoutedEventArgs e)
-        {
-            var toRemove = _files.Where(f => f.Selected).ToList();
-            foreach (var f in toRemove)
-                _files.Remove(f);
-            SetStatus($"Removed {toRemove.Count} file(s).");
-        }
-
-        private void SelectAll_Click(object sender, RoutedEventArgs e)
-        {
-            if (_files.Count == 0)
-            {
-                SetStatus("No files to select.");
-                return;
-            }
-
-            bool allSelected = _files.All(f => f.Selected);
-
-            foreach (var file in _files)
-            {
-                file.Selected = !allSelected;
-            }
-
-            if (allSelected)
-                SetStatus($"Deselected all {_files.Count} file(s).");
-            else
-                SetStatus($"Selected all {_files.Count} file(s).");
-        }
 
         private void ClearAll_Click(object sender, RoutedEventArgs e)
         {
@@ -130,7 +87,7 @@ namespace MotWasher
             if (_isProcessing) return;
 
             SetProcessingState(true);
-            SetStatus("Refreshing status...");
+            SetStatus("Refreshing zones...");
 
             var filesToRefresh = _files.ToList();
 
@@ -138,72 +95,117 @@ namespace MotWasher
             {
                 foreach (var f in filesToRefresh)
                 {
-                    f.HasMotW = MotWService.HasMotW(f.FullPath);
+                    var zoneId = MotWService.GetZoneId(f.FullPath);
+                    Dispatcher.Invoke(() =>
+                    {
+                        f.HasMotW = zoneId.HasValue;
+                        f.CurrentZoneId = zoneId;
+                        f.NextZoneId = CalculateNextZone(zoneId);
+                    });
                 }
             });
 
-            SetStatus($"Status refreshed for {filesToRefresh.Count} file(s).");
+            SetStatus($"Zones refreshed for {filesToRefresh.Count} file(s).");
             SetProcessingState(false);
         }
 
-        private async void UnblockSelected_Click(object sender, RoutedEventArgs e)
+        private async void WashFiles_Click(object sender, RoutedEventArgs e)
         {
             if (_isProcessing) return;
 
-            var targets = _files.Where(f => f.Selected && File.Exists(f.FullPath)).ToList();
-            if (targets.Count == 0)
+            if (_files.Count == 0)
             {
-                SetStatus(NoFilesSelectedMessage);
+                SetStatus("No files to wash. Drop files here or click Add Files.");
                 return;
             }
 
             SetProcessingState(true);
 
-            var (ok, fail) = await ProcessFilesAsync(targets, async (file) =>
+            int washed = 0, clean = 0, removed = 0, failed = 0;
+            var filesToProcess = _files.ToList();
+
+            await Task.Run(() =>
             {
-                return await Task.Run(() =>
+                foreach (var file in filesToProcess)
                 {
-                    var result = MotWService.Unblock(file.FullPath, out var error);
-                    if (result)
+                    try
                     {
-                        Dispatcher.Invoke(() => file.HasMotW = false);
+                        var currentZone = MotWService.GetZoneId(file.FullPath);
+
+                        if (!currentZone.HasValue)
+                        {
+                            clean++;
+                            continue;
+                        }
+
+                        var nextZone = currentZone.Value - 1;
+
+                        if (nextZone < 0)
+                        {
+                            // Remove MotW entirely (Zone 0 → No MotW)
+                            if (MotWService.Unblock(file.FullPath, out var error))
+                            {
+                                Dispatcher.Invoke(() =>
+                                {
+                                    file.HasMotW = false;
+                                    file.CurrentZoneId = null;
+                                    file.NextZoneId = null;
+                                });
+                                removed++;
+                                Logger.Info($"Removed MotW from: {file.FullPath}");
+                            }
+                            else
+                            {
+                                failed++;
+                                Logger.Error($"Failed to remove MotW from {file.FullPath}: {error}");
+                            }
+                        }
+                        else
+                        {
+                            // Reassign to next zone
+                            if (MotWService.Reassign(file.FullPath, nextZone, out var error))
+                            {
+                                Dispatcher.Invoke(() =>
+                                {
+                                    file.CurrentZoneId = nextZone;
+                                    file.NextZoneId = CalculateNextZone(nextZone);
+                                });
+                                washed++;
+                                Logger.Info($"Washed {file.FullPath}: Zone {currentZone} → Zone {nextZone}");
+                            }
+                            else
+                            {
+                                failed++;
+                                Logger.Error($"Failed to wash {file.FullPath}: {error}");
+                            }
+                        }
                     }
-                    return result;
-                });
+                    catch (Exception ex)
+                    {
+                        failed++;
+                        Logger.Error($"Error washing {file.FullPath}: {ex.Message}");
+                    }
+                }
             });
 
-            SetStatus($"Unblock complete. Success: {ok}, Failed: {fail}");
+            // Clear list after washing to encourage re-drop for next wash
+            _files.Clear();
+
+            var statusParts = new List<string>();
+            if (washed > 0) statusParts.Add($"{washed} washed");
+            if (removed > 0) statusParts.Add($"{removed} MotW removed");
+            if (clean > 0) statusParts.Add($"{clean} already clean");
+            if (failed > 0) statusParts.Add($"{failed} failed");
+
+            SetStatus($"Wash complete! {string.Join(", ", statusParts)}. Drop files again to wash further.");
             SetProcessingState(false);
         }
 
-        private async void BlockSelected_Click(object sender, RoutedEventArgs e)
+        private int? CalculateNextZone(int? currentZone)
         {
-            if (_isProcessing) return;
-
-            var targets = _files.Where(f => f.Selected && File.Exists(f.FullPath)).ToList();
-            if (targets.Count == 0)
-            {
-                SetStatus(NoFilesSelectedMessage);
-                return;
-            }
-
-            SetProcessingState(true);
-
-            var (ok, fail) = await ProcessFilesAsync(targets, async (file) =>
-            {
-                return await Task.Run(() =>
-                {
-                    var result = MotWService.Block(file.FullPath, out var error);
-                    if (result)
-                    {
-                        Dispatcher.Invoke(() => file.HasMotW = true);
-                    }
-                    return result;
-                });
-            });
-
-            SetStatus($"Block (add MotW) complete. Success: {ok}, Failed: {fail}");
-            SetProcessingState(false);
+            if (!currentZone.HasValue) return null;
+            if (currentZone.Value <= 0) return null; // No further washing possible
+            return currentZone.Value - 1;
         }
 
         private async Task<(int success, int failed)> ProcessFilesAsync(
@@ -278,14 +280,17 @@ namespace MotWasher
                         skipped++; continue;
                     }
                     var fi = new FileInfo(p);
+                    var zoneId = MotWService.GetZoneId(fi.FullName);
                     var entry = new FileEntry(
                         fullPath: fi.FullName,
                         name: fi.Name,
                         extension: fi.Extension,
                         sizeBytes: fi.Length,
                         modifiedUtc: fi.LastWriteTimeUtc,
-                        hasMotw: MotWService.HasMotW(fi.FullName)
+                        hasMotw: zoneId.HasValue
                     );
+                    entry.CurrentZoneId = zoneId;
+                    entry.NextZoneId = CalculateNextZone(zoneId);
                     _files.Add(entry);
                     added++;
                 }

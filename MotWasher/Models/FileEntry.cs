@@ -8,6 +8,8 @@ namespace MotWasher.Models
     {
         private bool _selected;
         private bool _hasMotw;
+        private int? _currentZoneId;
+        private int? _nextZoneId;
 
         public string FullPath { get; }
         public string Name { get; }
@@ -24,8 +26,23 @@ namespace MotWasher.Models
         public bool HasMotW
         {
             get => _hasMotw;
-            set { _hasMotw = value; OnPropertyChanged(); }
+            set { _hasMotw = value; OnPropertyChanged(); OnPropertyChanged(nameof(CurrentZoneDisplay)); OnPropertyChanged(nameof(NextZoneDisplay)); }
         }
+
+        public int? CurrentZoneId
+        {
+            get => _currentZoneId;
+            set { _currentZoneId = value; OnPropertyChanged(); OnPropertyChanged(nameof(CurrentZoneDisplay)); OnPropertyChanged(nameof(NextZoneDisplay)); }
+        }
+
+        public int? NextZoneId
+        {
+            get => _nextZoneId;
+            set { _nextZoneId = value; OnPropertyChanged(); OnPropertyChanged(nameof(NextZoneDisplay)); }
+        }
+
+        public string CurrentZoneDisplay => FormatZone(CurrentZoneId, true);
+        public string NextZoneDisplay => FormatZone(NextZoneId, false);
 
         public string SizeDisplay => FormatBytes(SizeBytes);
         public string ModifiedLocal => ModifiedUtc.ToLocalTime().ToString("G", CultureInfo.CurrentCulture);
@@ -64,6 +81,24 @@ namespace MotWasher.Models
 
             string format = order == 0 ? "0" : "0.##";
             return $"{len.ToString(format, CultureInfo.InvariantCulture)} {sizes[order]}";
+        }
+
+        private static string FormatZone(int? zoneId, bool isCurrent)
+        {
+            if (!zoneId.HasValue)
+            {
+                return isCurrent ? "No MotW" : "✓ Clean";
+            }
+
+            return zoneId.Value switch
+            {
+                0 => "0 - Local",
+                1 => "1 - Intranet",
+                2 => "2 - Trusted",
+                3 => "3 - Internet",
+                4 => "4 - Restricted",
+                _ => $"Zone {zoneId.Value}"
+            };
         }
 
         public override string ToString() => $"{Name} ({SizeDisplay}) - MotW: {HasMotW}";
