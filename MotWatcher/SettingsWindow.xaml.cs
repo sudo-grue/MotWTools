@@ -28,20 +28,9 @@ namespace MotWatcher
         {
             // General settings
             AutoStartCheckBox.IsChecked = _config.AutoStart;
+            StartWatchingOnLaunchCheckBox.IsChecked = _config.StartWatchingOnLaunch;
             NotifyOnProcessCheckBox.IsChecked = _config.NotifyOnProcess;
             DebounceSlider.Value = _config.DebounceDelayMs / 1000.0;
-
-            // Check if StartWatchingOnLaunch exists in config
-            var configType = _config.GetType();
-            var startWatchingProp = configType.GetProperty("StartWatchingOnLaunch");
-            if (startWatchingProp != null)
-            {
-                StartWatchingOnLaunchCheckBox.IsChecked = (bool?)startWatchingProp.GetValue(_config) ?? false;
-            }
-            else
-            {
-                StartWatchingOnLaunchCheckBox.IsChecked = false;
-            }
 
             // Directories
             DirectoriesGrid.ItemsSource = _config.WatchedDirectories;
@@ -205,6 +194,7 @@ namespace MotWatcher
         {
             // Update config from UI
             _config.AutoStart = AutoStartCheckBox.IsChecked ?? false;
+            _config.StartWatchingOnLaunch = StartWatchingOnLaunchCheckBox.IsChecked ?? false;
             _config.NotifyOnProcess = NotifyOnProcessCheckBox.IsChecked ?? true;
             _config.DebounceDelayMs = (int)(DebounceSlider.Value * 1000);
 

@@ -87,6 +87,7 @@ namespace MotWatcher.Services
             var config = new WatcherConfig
             {
                 AutoStart = false,
+                StartWatchingOnLaunch = false,
                 NotifyOnProcess = true,
                 DebounceDelayMs = 2000
             };

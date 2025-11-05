@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Forms;
 using MotW.Shared.Models;
@@ -18,6 +19,8 @@ public partial class App : Application
     private FileWatcherService? _watcherService;
     private Models.WatcherConfig? _config;
     private WatcherStatistics? _statistics;
+    private Icon? _iconRunning;
+    private Icon? _iconStopped;
 
     private void Application_Startup(object sender, StartupEventArgs e)
     {
@@ -27,10 +30,14 @@ public partial class App : Application
         _config = ConfigService.Load();
         _statistics = StatisticsService.Load();
 
+        // Load custom icons from embedded resources
+        _iconStopped = LoadIconFromResource("tray-stopped.ico");
+        _iconRunning = LoadIconFromResource("tray-running.ico");
+
         // Create system tray icon
         _notifyIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Shield, // Using built-in icon for now
+            Icon = _iconStopped ?? SystemIcons.Shield, // Use custom icon or fallback to system icon
             Visible = true,
             Text = "MotW Watcher - Not Running"
         };
@@ -115,7 +122,7 @@ public partial class App : Application
             _watcherService.Start();
             menuItem.Text = "Stop Watching";
             _notifyIcon.Text = "MotWatcher - Running";
-            _notifyIcon.Icon = SystemIcons.Application;
+            _notifyIcon.Icon = _iconRunning ?? SystemIcons.Application;
             Logger.Info("Watcher service started.");
         }
     }
@@ -131,7 +138,7 @@ public partial class App : Application
             _watcherService.Stop();
             menuItem.Text = "Start Watching";
             _notifyIcon.Text = "MotWatcher - Not Running";
-            _notifyIcon.Icon = SystemIcons.Shield;
+            _notifyIcon.Icon = _iconStopped ?? SystemIcons.Shield;
             Logger.Info("Watcher service stopped.");
         }
     }
@@ -309,7 +316,32 @@ public partial class App : Application
             _notifyIcon.Dispose();
         }
 
+        _iconRunning?.Dispose();
+        _iconStopped?.Dispose();
+
         Logger.Info("MotWatcher shutdown complete.");
+    }
+
+    private static Icon? LoadIconFromResource(string resourceName)
+    {
+        try
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            using var stream = assembly.GetManifestResourceStream(resourceName);
+
+            if (stream == null)
+            {
+                Logger.Warn($"Icon resource not found: {resourceName}");
+                return null;
+            }
+
+            return new Icon(stream);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"Failed to load icon resource '{resourceName}': {ex.Message}");
+            return null;
+        }
     }
 }
 

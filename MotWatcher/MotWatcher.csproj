@@ -34,11 +34,21 @@
 
     <PublishTrimmed>false</PublishTrimmed>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <!-- <ApplicationIcon>app.ico</ApplicationIcon> -->
+    <ApplicationIcon>..\Resources\app.ico</ApplicationIcon>
 
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
+
+  <!-- Embed icon resources for system tray -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\Resources\tray-running.ico">
+      <LogicalName>tray-running.ico</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\Resources\tray-stopped.ico">
+      <LogicalName>tray-stopped.ico</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 
   <!-- Default: FDD (Framework-Dependent Deployment) -->
   <PropertyGroup Condition="'$(PublishFlavor)' == ''">
